@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de Capacidad y Viabilidad de Proyectos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+        }
+        .filter-container select, .filter-container button {
+            min-width: 150px;
+        }
+        #recursoFilter {
+            height: 100px; /* Adjust height for multiple select */
+        }
+        table th, table td {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            text-align: left;
+        }
+        table th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            max-height: 400px; /* Adjusted max height */
+        }
+        .sticky-header th {
+            position: sticky;
+            top: 0;
+            z-index: 10; /* Ensure header is above content */
+            background-color: #f1f5f9; /* Match header background */
+        }
+        .card { /* Generic card style */
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        /* Custom scrollbar for webkit browsers */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .chart-container { /* Ensure chart has space */
+            min-height: 350px;
+            position: relative; /* Needed for Chart.js responsiveness */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="container mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">Análisis de Capacidad y Viabilidad de Proyectos</h1>
+            <p class="text-gray-600 mt-2">Filtra datos, visualiza disponibilidad y viabilidad de recursos para proyectos (límite mensual: 160h, viabilidad proyecto: >=80h disponibles).</p>
+        </header>
+
+        <div class="card grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 p-6">
+            <div>
+                <label for="clasificacionFilter" class="block text-sm font-medium text-gray-700 mb-1">Clasificación:</label>
+                <select id="clasificacionFilter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+            </div>
+            <div>
+                <label for="proyectoFilter" class="block text-sm font-medium text-gray-700 mb-1">Proyecto:</label>
+                <select id="proyectoFilter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+            </div>
+            <div>
+                <label for="recursoFilter" class="block text-sm font-medium text-gray-700 mb-1">Recurso(s):</label>
+                <select id="recursoFilter" multiple class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </select>
+                <p class="text-xs text-gray-500 mt-1">Ctrl+Click (o Cmd+Click) para seleccionar varios.</p>
+            </div>
+            <div>
+                <label for="areaFilter" class="block text-sm font-medium text-gray-700 mb-1">Área:</label>
+                <select id="areaFilter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+            </div>
+            <div class="flex items-end">
+                <button id="resetFilters" class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-md shadow-sm">
+                    Limpiar Filtros
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Horas Colectivas Disponibles para Nuevas Tareas</h2>
+            <div id="selectedResourcesCollectiveChartInfo" class="text-gray-600 mb-3">Selecciona uno o más recursos para ver el gráfico.</div>
+            <div class="chart-container">
+                <canvas id="collectiveAvailableHoursChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Viabilidad de Proyecto por Recurso (>= 80h disponibles/mes)</h2>
+            <div id="selectedResourcesViabilityChartInfo" class="text-gray-600 mb-3">Selecciona uno o más recursos para ver su viabilidad individual.</div>
+            <div class="chart-container">
+                <canvas id="projectViabilityChart"></canvas>
+            </div>
+        </div>
+
+
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Tasa de Desocupación Mensual (Detalle Individual)</h2>
+            <div id="selectedResourceVacancyInfo" class="text-gray-600 mb-3">Selecciona un único recurso para ver su detalle de desocupación.</div>
+            <div class="table-responsive">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50 sticky-header">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mes</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Horas Asignadas</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasa de Desocupación (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vacancyRateTableBody" class="bg-white divide-y divide-gray-200">
+                         <tr><td colspan="3" class="text-center py-4 text-gray-500">Selecciona un único recurso.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Tabla de Datos de Capacidad</h2>
+            <div class="table-responsive">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead id="dataTableHead" class="bg-gray-50 sticky-header">
+                    </thead>
+                    <tbody id="dataTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="16" class="text-center py-10 text-gray-500">Cargando datos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+             <div id="rowCount" class="mt-4 text-sm text-gray-600"></div>
+        </div>
+    </div>
+
+<script>
+const csvData = `Clasificación,Proyecto,Recurso,Área,Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre
+Proyecto,Motor de Riesgo,Miguel Muñoz,Op Omnicanal,80,80,80,80,60,60,,,,,,
+Proyecto,Pasarela de Pago,Marco Osorio,Op Omnicanal,80,80,80,80,80,40,40,,,,,
+Proyecto,PPFF en Soc,Miguel Muñoz,Op Omnicanal,,,4,8,12,20,20,80,80,,,
+Iniciativa,Cicular 62,Miguel Muñoz,Op Omnicanal,,,,4,,20,20,,28,28,,
+Proyecto,Venta en Kiosko,Miguel Muñoz,Op Omnicanal,,,,20,20,20,20,20,,,,
+Proyecto,Venta en Tablet,Miguel Muñoz,Op Omnicanal,,,,5,12,12,12,12,,,,
+Proyecto,Call Center IA,Cristián Gonzalez,Op Omnicanal,,,,,40,40,40,40,60,60,,
+Proyecto,Google Voice,Cristián Gonzalez,Op Omnicanal,,,,,40,40,40,40,60,60,,
+Mantención,Mantenciones,Cristián Gonzalez,Op Omnicanal,40,40,40,40,40,40,40,40,40,40,40,40
+Mantención,Mantenciones,Miguel Muñoz,Op Omnicanal,40,40,40,40,40,40,40,40,40,40,40,40
+Mantención,Mantenciones,Marco Osorio,Op Omnicanal,80,80,80,80,80,80,80,80,80,80,80,80
+Iniciativa,Banda Riesgo Crédito,Cristián Gonzalez,Op Omnicanal,,,,,12,,20,8,8,,,
+Proyecto,Biometria,Miguel Muñoz,Op Omnicanal,,,,20,20,20,20,20,20,20,,
+Iniciativa,Pesos Mi Club,Marco Osorio,Op Omnicanal,,,,,12,40,40,20,,,,
+Iniciativa,Aric TRX No Financieras,Marco Osorio,Op Omnicanal,,,,,,,,,,,,
+Proyecto,Seguros en Avances,Stefany Jara,Core,,,,,,,,,,,,
+Proyecto,Mantenedor de Promociones Seguro,Stefany Jara,Core,,,,,,,,,,,,
+Proyecto,Motor AML,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,"Mejora del proceso de confirmación de transacciones, conciliación y liquidación Walmart",Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Actualización Weblogic 12.2 (Infraestructura IC),Andrea Durán,Core,8,2,2,8,8,6,,,,,,
+Proyecto,AFT Visa,Cristián Diaz,Core,,40,,7,10,5,,,,,,
+Proyecto,C64,Ricardo Millan,Core,,,,,,,,,,,,
+Proyecto,C45,Ricardo Millan,Core,,,,,,,,,,,,
+Proyecto,"MB2, MC2, MR2",Ricardo Millan,Core,,,,,,,,,,,,
+Proyecto,P2M,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,P2M,Cristián Diaz,Core,4,4,8,8,4,4,4,4,,,,
+Proyecto,OTP in App,Andrea Durán,Core,2,4,4,4,4,4,,,,,,
+Proyecto,OTP in App,Rodrigo Mateluna,Core,20,4,12,15,15,6,,,,,,
+Proyecto,Contact Center IA,Rodrigo Mateluna,Core,,,10,4,10,6,15,10,,,,
+Proyecto,Renovación Infraestructura AS400 (AZ7),Rodrigo Mateluna,Core,10,10,10,24,24,6,,,,,,
+Proyecto,Migración NFS Walmart,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,"Migración AZ7 versión 4,2 Tokenización PAN",Rodrigo Mateluna,Core,20,5,20,20,20,20,,,,,,
+Iniciativa,Aric TRX No Financieras,Samuel Aguilera,Core,,,,,,,,,,,,
+Iniciativa,Pesos Mi Club,Andrea Durán,Core,,,,,,,,,,,,
+Iniciativa,Cicular 62,Andrea Durán,Core,,,,,,,,,,,,
+Iniciativa,Banda Riesgo Crédito,Andrea Durán,Core,,,,,,,,,,,,
+Proyecto,Servicio Venta y Post Venta Cod 91,Andrea Durán,Core,,,,,,,,,,,,
+Proyecto,Contabilidad Integral (en curso Santi),Pio Marshall,Core,,,,,,,,,,,,
+Proyecto,Contabilidad Integral,Ricardo Millán,Core,,,,,,,,,,,,
+Proyecto,Contabilidad Integral,Andrea Durán,Core,,,,,,,,,,,,
+Proyecto,Contabilidad Integral,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Daniel Yáñez,Core,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Catherine Arriagada,Core,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Bárbara Rivas,Core,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Alejandro Guardia,Core,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Encriptación BBDD IC,Ricardo Millan,Core,,,,,,,,,,,,
+Proyecto,PPFF en Soc,Carolina Loncon,Op Intermediación y Procesos Centrales,,,,4,6,6,6,6,6,,,
+Proyecto,PPFF en Soc,Felipe Marchant,Op Intermediación y Procesos Centrales,,,,4,6,6,6,6,6,,,
+Proyecto,Motor de Tasas,Carolina Loncon,Op Intermediación y Procesos Centrales,,,,1,4,4,,,,,,
+Proyecto,Motor de Tasas,Felipe Marchant,Op Intermediación y Procesos Centrales,,,4,4,4,4,4,4,4,,,
+Proyecto,Motor de Tasas,Pamela Ferreria,Op Intermediación y Procesos Centrales,,,4,4,4,4,4,4,4,,,
+Proyecto,Motor de Tasas,Nancy Cortez,Op Intermediación y Procesos Centrales,,,4,4,4,4,4,4,4,,,
+Proyecto,Motor de Tasas,Jaime Huerta,Op Intermediación y Procesos Centrales,,,4,4,4,4,4,4,4,,,
+Proyecto,Motor de Tasas,Catalina Madrazo,Op Intermediación y Procesos Centrales,,,4,4,4,4,4,4,4,,,
+Proyecto,Motor de Tasas,Pamela Olave,Op Intermediación y Procesos Centrales,,,8,8,8,8,,,,,,
+Proyecto,Contabilidad Integral,Carla Acosta,Op Intermediación y Procesos Centrales,,,10,10,10,10,,,,,,
+Proyecto,Contabilidad Integral,Alex Espinoza,Op Intermediación y Procesos Centrales,10,10,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Pamela Olave,Op Intermediación y Procesos Centrales,8,8,8,8,8,8,8,8,8,,,
+Proyecto,Transformación de Operaciones,Marcelo Caviedes,Op Intermediación y Procesos Centrales,12,12,12,12,12,12,12,12,12,,,
+Proyecto,Transformación de Operaciones,Pamela Ferreria,Op Intermediación y Procesos Centrales,8,8,8,8,8,8,8,8,8,,,
+Proyecto,Transformación de Operaciones,Nancy Cortez,Op Intermediación y Procesos Centrales,8,8,8,8,8,8,8,8,8,,,
+Proyecto,Transformación de Operaciones,Jaime Huerta,Op Intermediación y Procesos Centrales,4,4,4,4,4,4,4,4,4,,,
+Proyecto,Transformación de Operaciones,Felipe Marchant,Op Intermediación y Procesos Centrales,6,6,6,6,6,6,6,6,6,,,
+Proyecto,Transformación de Operaciones,Sebastian Candia,Op Intermediación y Procesos Centrales,12,12,12,12,12,12,12,12,12,,,
+Proyecto,Transformación de Operaciones,Ignacio Olivares,Op Intermediación y Procesos Centrales,12,12,12,12,12,12,12,12,12,,,
+Proyecto,Transformación de Operaciones,Raul Campos,Op Intermediación y Procesos Centrales,16,16,16,16,16,16,16,16,16,,,
+Proyecto,Transformación de Operaciones,Alison Contrares,Op Intermediación y Procesos Centrales,,,,,4,4,4,4,4,,,
+Proyecto,Transformación de Operaciones,Yesenia Manquileo,Op Intermediación y Procesos Centrales,4,4,4,4,,,4,4,4,,,
+Proyecto,Transformación de Operaciones,Alex Espinoza,Op Intermediación y Procesos Centrales,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Carla Acosta,Op Intermediación y Procesos Centrales,10,10,10,10,10,10,10,10,10,,,
+Proyecto,Transformación de Operaciones,Carolina Loncon,Op Intermediación y Procesos Centrales,8,8,8,8,8,8,8,8,8,,,
+Proyecto,Transformación de Operaciones,Andrés Grandón,Op Intermediación y Procesos Centrales,8,8,8,8,8,8,8,8,8,,,
+Proyecto,Transformación de Operaciones,Felipe Pino,Op Intermediación y Procesos Centrales,6,6,6,6,6,6,6,6,6,,,
+Proyecto,Transformación de Operaciones,Verónica Medina,Op Intermediación y Procesos Centrales,6,6,6,6,6,6,6,6,6,,,
+Proyecto,Transformación de Operaciones,Catalina Martinez,Op Intermediación y Procesos Centrales,,,,6,6,6,6,6,6,,,
+Proyecto,Mantenedor de Seguros,Felipe Marchant,Op Intermediación y Procesos Centrales,6,6,6,6,6,6,6,6,6,,,
+Proyecto,Seguros en Avances,Felipe Marchant,Op Intermediación y Procesos Centrales,4,4,4,4,4,4,4,4,4,,,
+Proyecto,"Motor de Riesgo (Orig. SOC, App, TD)",Michael Taylor,Digital,40,40,40,40,160,160,160,160,160,160,160,160
+Proyecto,Pasarela de Pago,Roberto Lepin,Digital,10,10,10,10,40,40,,,,,,
+Proyecto,PPFF en SOC (AV/SAV/Seguros en Avance),Pamela Riquelme,Digital,,,,,100,100,100,100,100,100,,
+Proyecto,PPFF en SOC (AV/SAV/Seguros en Avance),Mauricio Jerez,Digital,,,,,100,100,100,100,,,,
+Proyecto,PPFF en SOC (AV/SAV/Seguros en Avance),Javier Castillo,Digital,,,,,80,80,80,80,,,,
+Proyecto,PPFF en SOC (AV/SAV/Seguros en Avance),Gabriel Palocz,Digital,,,,,80,80,80,80,,,,
+Proyecto,"Motor de Riesgo (Orig. SOC, App, TD)",Felipe Castro,Digital,,,,,140,120,120,120,,,,
+Proyecto,Motor de Riesgo,Nelson Caniullan,Digital,,,,,80,80,80,80,80,80,80,80
+Iniciativa,AML en ARIC,Nelson Caniullan,Digital,,,,,20,,,,,,,
+Proyecto,Migración Mug,Nelson Caniullan,Digital,,,,,20,20,20,20,,,,
+Proyecto,Mensaje en Caja (SAV),Nelson Caniullan,Digital,,,,,40,40,40,40,,,,
+Proyecto,Pasarela de Pago,Soledad Inostroza,Digital,,,,,40,40,,,,,,
+Proyecto,Venta en Kiosko,Edward Tanner,Digital,,,,,60,0,,,,,,
+Proyecto,Venta en Tablet,Gerhard Obrist,Digital,,,,,40,20,,,,,,
+Iniciativa,Circular 62,Pamela Riquelme,Digital,,,,,10,35,40,40,,,,
+Proyecto,Google CCAIP - Solucion Call de Clientes,Pamela Riquelme,Digital,,,,,5,5,,,5,5,5,5
+Proyecto,Google CCAIP - Solucion Call de Clientes,Felipe Castro,Digital,,,,,20,40,40,40,80,80,80,80
+Mantención,Mantenciones,Gerhard Obrist,Digital,,,,,120,140,160,160,160,160,160,160
+Mantención,Mantenciones,Gabriela Jaimes,Digital,,,,,160,160,160,160,,,,
+Mantención,Mantenciones,Javier Sanhueza,Digital,,,,,160,160,160,160,,,,
+Mantención,Mantenciones,Alexander Tobar,Digital,,,,,160,160,160,160,,,,
+Mantención,Mantenciones,Diana Urtubia,Digital,,,,,60,60,60,60,,,,
+Mantención,Mantenciones,Alex Ronquillo,Digital,,,,,60,160,160,160,,,,
+Mantención,Mantenciones mallas y batch,Nelson Caniullan,Digital,,,,,,20,20,20,40,40,40,40
+Mantención,Mantenciones,Roberto Lepin,Digital,,,,,40,40,80,80,80,80,80,80
+Mantención,Mantenciones,Edward Tanner,Digital,,,,,20,10,0,0,40,40,40,40
+Mantención,Mantenciones,Roberto Vega,Digital,,,,,160,160,160,160,,,,
+Mantención,Mantenciones,Soledad Inostroza,Digital,,,,,80,100,,,,,,
+Iniciativa,AML en ARIC,Gabriel Palocz,Digital,,,,,40,80,80,80,,,,
+Iniciativa,ARIC TRX No Financieras,Rafael Garrido,Digital,,,,,10,10,40,40,40,40,40,40
+Proyecto,Motor de Tasas,Rafael Garrido,Digital,,,,,140,140,100,100,,,,
+Mantención,Mantenciones,Pamela Riquelme,Digital,,,,,5,5,10,10,20,20,20,20
+Mantención,Mantenciones,Mauricio Jerez,Digital,,,,,60,60,60,60,,,,
+Mantención,Mantenciones,Javier Castillo,Digital,,,,,60,80,80,80,,,,
+Proyecto,Migración Experian,Pamela Riquelme,Digital,,,,,25,10,,,,,,
+Proyecto,Migración Experian,Gabriel Palocz,Digital,,,,,40,,,,,,,
+Proyecto,Certificación email SOC,Pamela Riquelme,Digital,,,,,10,0,,,,,,
+Proyecto,Certificación email SOC,Javier Castillo,Digital,,,,,20,,,,,,,
+Proyecto,BUP,Pamela Riquelme,Digital,,,,,5,5,10,10,,,,
+Proyecto,BUP,Edward Tanner,Digital,,,,,20,40,80,80,40,40,40,40
+Proyecto,Vulnerabilidades Canales Digitales,Rafael Garrido,Digital,,,,,10,10,20,20,,,,
+Proyecto,Vulnerabilidades Canales Digitales,Raul Gomez,Digital,,,,,,,,,,,,
+Proyecto,Vulnerabilidades Canales Digitales,Carlos Cadiu,Digital,,,,,,,,,,,,
+Proyecto,BUK,Roberto Lepin,Digital,,,,,10,0,,,,,,
+Iniciativa,Actualización Webpay para clientes castigados,Roberto Lepin,Digital,,,,,5,5,,,,,,
+Proyecto,Cargo pesosMiClub directo API WM,Roberto Lepin,Digital,,,,,0,0,,,,,,
+Proyecto,Cifrado PIN con AES256 Botón de Pago,Roberto Lepin,Digital,,,,,10,35,,,,,,
+Iniciativa,Gobierno de Datos pesosMiClub,Roberto Lepin,Digital,,,,,40,40,80,80,,,,
+Mantención,Mejoras Dasboard Botón de Pago,Roberto Lepin,Digital,,,,,15,0,,,,,,
+Proyecto,Embozado Sucursal Light,Edward Tanner,Digital,,,,,40,10,,,,,,
+Iniciativa,"Migración de servicios (venta,colocación, post venta)",Edward Tanner,Digital,,,,,20,100,80,80,80,80,80,80
+Proyecto,BUK,Soledad Inostroza,Digital,,,,,40,0,,,,,,
+Proyecto,"Motor de Riesgo (Orig. SOC, App, TD)",Diana Urtubia,Digital,,,,,100,100,100,100,,,,
+Proyecto,"Motor de Riesgo (Orig. SOC, App, TD)",Alex Ronquillo,Digital,,,,,100,,,,,,,
+Mantención,Mantenciones,Richard Aguirre,Digital,,,,,160,160,160,160,,,,
+Mantención,Mantenciones,Roberto Riquelme,Digital,,,,,160,160,160,160,,,,
+Mantención,Mejoras Dasboard Botón de Pago,Soledad Inostroza,Digital,,,,,20,20,,,,,,
+Proyecto,Google CCAIP - Solucion Call de Clientes,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Normativo de tasas de intercambio 2025,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Conciliacion Khipu en C&C,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,PCI 2025 : Purga Disco H,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,PCI 2025 : Cifrado Disco H,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Seguros en Avances,Sebastian Campos,Core,,,,,,,,,,,,
+Proyecto,Mantenedor de Promociones Seguro,Ricardo Escobar,Core,,,,,,,,,,,,
+Proyecto,Migración de arquitectura a nuevo tenant bajo la suscripción de BCI.,Oscar Umanzor /M Hernandez,Arquitectura e Infraestructura,30,30,30,30,30,30,30,30,30,,,
+Proyecto,Monitoreo de servicios y monitoreos funcionales.,Oscar Umanzor/Gustavo Escaff,Arquitectura e Infraestructura,25,25,25,25,25,25,25,25,25,,,
+Proyecto,Migración de onpremise producción a dev sucursal.,Oscar Umanzor /M Hernandez,Arquitectura e Infraestructura,30,30,30,30,30,30,30,,,,,
+Proyecto,Base única de personas - BUP,Oscar Umanzor /Eduardo Ramirez,Arquitectura e Infraestructura,20,20,20,20,20,20,,,,,,
+Proyecto,Migración de dashboards de grafana a influxdb.,Oscar Umanzor/Gustavo Escaff,Arquitectura e Infraestructura,30,30,30,30,30,30,,,,,,
+Proyecto,PPFF en Soc,Oscar Umanzor/Andrés Salgado ,Arquitectura e Infraestructura,,,,,,40,40,40,40,40,40,40
+Proyecto,Motor de Tasas,Oscar Umanzor /Eduardo Ramirez,Arquitectura e Infraestructura,20,20,20,20,20,20,20,,,,,
+Proyecto,Pasarela de Pago,Oscar Umanzor/Miguel Valencia ,Arquitectura e Infraestructura,30,30,30,30,30,30,30,,,,,
+Proyecto,Venta en Kiosko,Oscar Umanzor/Eduardo Saldivia,Arquitectura e Infraestructura,,,,,,40,40,40,40,40,40,40
+Proyecto,"Motor de Riesgo (Orig. SOC, App, TD)",Oscar Umanzor/Miguel Valencia ,Arquitectura e Infraestructura,30,30,30,30,30,30,30,,,,,
+Proyecto,BUP,Oscar Umanzor/Gustavo Escaff,Arquitectura e Infraestructura,,25,25,25,25,25,25,25,25,,,
+Proyecto,Vulnerabilidades Canales Digitales,Oscar Umanzor/Eduardo Saldivia,Arquitectura e Infraestructura,,,,50,50,50,50,50,50,50,50,50
+Mantención,Mantenimiento Cloud,Oscar Umanzor/Andrés Salgado ,Arquitectura e Infraestructura,48,48,48,48,48,48,48,48,48,48,48,48
+Mantención,Mantenimiento Cloud,Oscar Umanzor/Gustavo Escaff,Arquitectura e Infraestructura,48,48,48,48,48,48,48,48,48,48,48,48
+Mantención,Mantenimiento Cloud,Oscar Umanzor /Eduardo Ramirez,Arquitectura e Infraestructura,48,48,48,48,48,48,48,48,48,48,48,48
+Mantención,Mantenimiento Cloud,Oscar Umanzor /M Hernandez,Arquitectura e Infraestructura,48,48,48,48,48,48,48,48,48,48,48,48
+Mantención,Mantenimiento Cloud,Oscar Umanzor/Eduardo Saldivia,Arquitectura e Infraestructura,48,48,48,48,48,48,48,48,48,48,48,48
+Mantención,Mantenimiento Cloud,Oscar Umanzor/Miguel Valencia ,Arquitectura e Infraestructura,48,48,48,48,48,48,48,48,48,48,48,48
+Proyecto,Cifrado PIN con AES256 Botón de Pago,Oscar Umanzor /Eduardo Ramirez,Arquitectura e Infraestructura,,,,,,,20,20,20,20,20,20
+Proyecto,"Migracion Enlace Walmart (DC Liray, ex Bunker)",Diego Negrete/ Carlos Poblete,Arquitectura e Infraestructura,40,40,40,40,40,,,,,,,
+Proyecto,Migracion NFS / MFT Walmart,Diego Negrete/ Carlos Poblete,Arquitectura e Infraestructura,,40,40,40,40,40,40,40,,,,
+Proyecto,Parchado BD Oracle CAT1 (2025),Diego Negrete/ Carlos Poblete,Arquitectura e Infraestructura,,,,,,,30,30,30,30,30,30
+Proyecto,Satélites PVS,Diego Negrete/ Carlos Poblete,Arquitectura e Infraestructura,,,,30,30,30,30,30,30,30,30,30
+Proyecto,Obsolescencia Intercore,Diego Negrete/ Carlos Poblete,Arquitectura e Infraestructura,,30,30,30,30,30,,,,,,
+Mantención,Mantenimientos Infraestructura ,Diego Negrete/ Carlos Poblete,Arquitectura e Infraestructura,64,64,64,64,64,64,64,64,64,64,64,64
+Proyecto,Actualización Weblogic 12.2 (Infraestructura IC),Diego Negrete/ Ignacio Marin ,Arquitectura e Infraestructura,,40,40,40,40,40,40,40,40,40,40,40
+Proyecto,Upgrade Base de Datos SOC (BOFFICE),Diego Negrete/ Ignacio Marin ,Arquitectura e Infraestructura,,,,,,,40,40,40,40,40,40
+Proyecto,Renovación Storage CAT3,Diego Negrete/ Ignacio Marin ,Arquitectura e Infraestructura,,,,,,,40,40,40,40,40,40
+Mantención,Mantenimientos Infraestructura ,Diego Negrete/ Ignacio Marin ,Arquitectura e Infraestructura,64,64,64,64,64,64,64,64,64,64,64,64
+Proyecto,Renovacion Infraestructura AS400,Diego Negrete/Aaron Bastidas,Arquitectura e Infraestructura,40,40,40,0,,40,40,,,,,
+Proyecto,Cambio de rol data center - DRP normativos,Diego Negrete/Aaron Bastidas,Arquitectura e Infraestructura,,,,,,40,40,40,40,40,40,40
+Proyecto,Migración AZ7 (Contingencia + Productivo),Diego Negrete/Aaron Bastidas,Arquitectura e Infraestructura,40,40,40,40,,40,40,,,,,
+Mantención,Mantenimientos Infraestructura ,Diego Negrete/Aaron Bastidas,Arquitectura e Infraestructura,64,64,64,64,64,64,64,64,64,64,64,64
+Proyecto,Wifi Millenium ,Diego Negrete/Aaron Bastidas,Arquitectura e Infraestructura,40,40,40,40,40,,,,,,,
+Proyecto,Google Voice,Matias Castillo/Aaron Bastidas,Arquitectura e Infraestructura,40,,,40,40,40,40,40,40,,,
+Iniciativa,Migración SAP,Matias Castillo/Giovanni Cancino ,Arquitectura e Infraestructura,15,15,15,15,15,,40,40,40,40,40,40
+Proyecto,Rebranding - Cambio de Dominio ,Matias Castillo/Giovanni Cancino ,Arquitectura e Infraestructura,,,,40,40,40,40,40,,,,
+Proyecto,Google Auditoria Grabaciones,Matias Castillo/Marbelis Escalante ,Arquitectura e Infraestructura,,,20,40,40,40,40,40,40,,,
+Proyecto,Google CCAIP - Solucion Call de Clientes,Matias Castillo/Marbelis Escalante ,Arquitectura e Infraestructura,,,20,40,40,40,40,40,40,,,
+Proyecto,Gestión de Problemas (PPFF),Matias Castillo/Amalia Contreras,Arquitectura e Infraestructura,40,40,40,40,40,40,40,40,40,40,40,40
+Proyecto,Gestión de Problemas,Matias Castillo/Amalia Contreras,Arquitectura e Infraestructura,40,40,40,40,40,40,40,40,40,40,40,40
+Iniciativa,Casos de Uso IA,Matias Castillo/Amalia Contreras,Arquitectura e Infraestructura,80,80,80,80,80,80,80,80,80,80,80,80
+Iniciativa,Migración MUG,Matias Castillo/Marbelis Escalante ,Arquitectura e Infraestructura,40,40,40,40,40,40,40,,,,,
+Proyecto,Automatizar pruebas de regresión en Certificación QA ,Wolgang Finchi ,Arquitectura e Infraestructura,40,40,40,40,40,40,40,40,40,40,40,40
+Proyecto,PPFF en Soc,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Motor de Tasas,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Pasarela de Pago,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Venta en Kiosko,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,"Motor de Riesgo (Orig. SOC, App, TD)",Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Certificación email SOC,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,BUP,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Vulnerabilidades Canales Digitales,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Cifrado PIN con AES256 Botón de Pago,Wolgang Finchi ,Arquitectura e Infraestructura,15,15,15,15,15,15,15,15,15,15,15,15
+Proyecto,Despliegue de Agente SNOW (Control de Licenciamiento),Camila Gonzalez / Rafael Useche,Arquitectura e Infraestructura,30,30,30,30,30,,,,,,,
+Proyecto,Remediacion de vulnerabilidades Cardwizard por uso de codigo obsoleto,Camila Gonzalez / Rafael Useche,Arquitectura e Infraestructura,,,,30,30,30,30,30,30,30,30,30
+Mantención,Mantenimientos Seguridad ,Camila Gonzalez / Rafael Useche,Arquitectura e Infraestructura,64,64,64,64,64,64,64,64,64,64,64,64
+Proyecto,Cambio SMTP Seguro CAT1,Camila Gonzalez / Victor Miranda ,Arquitectura e Infraestructura,,,,30,30,30,30,30,,,,
+Proyecto,Encriptacioón BD Core de Tarjeta,Camila Gonzalez / Victor Miranda ,Arquitectura e Infraestructura,40,40,40,40,,30,30,,,,,
+Proyecto,Encriptación Disco H,Camila Gonzalez / Victor Miranda ,Arquitectura e Infraestructura,,,,,,60,60,60,60,60,,
+Mantención,Mantenimientos Seguridad ,Camila Gonzalez / Victor Miranda ,Arquitectura e Infraestructura,64,64,64,64,64,64,64,64,64,64,64,64
+Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
+
+    const MAX_HOURS_PER_MONTH = 160;
+    const PROJECT_VIABILITY_THRESHOLD = 80; // Horas mínimas para viabilidad
+    const MONTH_COLUMNS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    let originalData = [];
+    let collectiveAvailableHoursChartInstance = null;
+    let projectViabilityChartInstance = null;
+
+
+    // DOM Elements
+    const clasificacionFilter = document.getElementById('clasificacionFilter');
+    const proyectoFilter = document.getElementById('proyectoFilter');
+    const recursoFilter = document.getElementById('recursoFilter');
+    const areaFilter = document.getElementById('areaFilter');
+    const resetFiltersButton = document.getElementById('resetFilters');
+    
+    const dataTableHead = document.getElementById('dataTableHead');
+    const dataTableBody = document.getElementById('dataTableBody');
+    const rowCountDisplay = document.getElementById('rowCount');
+
+    const vacancyRateTableBody = document.getElementById('vacancyRateTableBody');
+    const selectedResourceVacancyInfo = document.getElementById('selectedResourceVacancyInfo');
+    
+    const collectiveAvailableHoursChartCanvas = document.getElementById('collectiveAvailableHoursChart');
+    const selectedResourcesCollectiveChartInfo = document.getElementById('selectedResourcesCollectiveChartInfo');
+
+    const projectViabilityChartCanvas = document.getElementById('projectViabilityChart');
+    const selectedResourcesViabilityChartInfo = document.getElementById('selectedResourcesViabilityChartInfo');
+
+
+    /**
+     * Parses a CSV string into an array of objects.
+     * Handles commas within quoted fields.
+     */
+    function parseCSV(csvText) {
+        const lines = csvText.trim().split('\n');
+        if (lines.length === 0) return [];
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        const data = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i];
+            const values = [];
+            let currentField = '';
+            let inQuotes = false;
+
+            for (let j = 0; j < line.length; j++) {
+                const char = line[j];
+                if (char === '"') {
+                    if (inQuotes && j + 1 < line.length && line[j + 1] === '"') {
+                        currentField += '"';
+                        j++; 
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    values.push(currentField.trim());
+                    currentField = '';
+                } else {
+                    currentField += char;
+                }
+            }
+            values.push(currentField.trim()); 
+
+            if (values.length === headers.length) {
+                const entry = {};
+                headers.forEach((header, index) => {
+                    let value = values[index] ? values[index] : '';
+                    if (MONTH_COLUMNS.includes(header)) {
+                        entry[header] = value === '' ? 0 : parseInt(value, 10);
+                    } else {
+                        if (value.startsWith('"') && value.endsWith('"')) {
+                            value = value.substring(1, value.length - 1).replace(/""/g, '"');
+                        }
+                        entry[header] = value;
+                    }
+                });
+                data.push(entry);
+            } else {
+                console.warn(`Skipping malformed CSV line ${i + 1}: expected ${headers.length} fields, got ${values.length}. Line: "${line}"`);
+            }
+        }
+        return data;
+    }
+
+    function populateSelect(selectElement, values, defaultValue = "Todos", isMultiple = false) {
+        if (!isMultiple) {
+            selectElement.innerHTML = `<option value="">${defaultValue}</option>`;
+        } else {
+            selectElement.innerHTML = ''; 
+        }
+        const uniqueValues = [...new Set(values.filter(v => v))].sort(); 
+        uniqueValues.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            selectElement.appendChild(option);
+        });
+    }
+
+    function getSelectedResources() {
+        return [...recursoFilter.selectedOptions].map(option => option.value);
+    }
+
+    function setupFilters(data) {
+        populateSelect(clasificacionFilter, data.map(item => item.Clasificación), "Todas las Clasificaciones");
+        populateSelect(proyectoFilter, data.map(item => item.Proyecto), "Todos los Proyectos");
+        populateSelect(recursoFilter, data.map(item => item.Recurso), "Seleccionar Recurso(s)", true);
+        populateSelect(areaFilter, data.map(item => item.Área), "Todas las Áreas");
+
+        [clasificacionFilter, proyectoFilter, areaFilter, recursoFilter].forEach(filter => {
+            filter.addEventListener('change', () => {
+                applyFiltersAndDisplay();
+                updateCollectiveAvailableHoursChart(); 
+                updateProjectViabilityChart();
+                displayVacancyRateForSelectedResource();
+            });
+        });
+        resetFiltersButton.addEventListener('click', resetAllFilters);
+    }
+
+    function displayDataTable(dataToDisplay) {
+        dataTableHead.innerHTML = '';
+        dataTableBody.innerHTML = '';
+        const columnCount = originalData.length > 0 ? Object.keys(originalData[0]).length : 16;
+
+
+        if (!dataToDisplay || dataToDisplay.length === 0) {
+            dataTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="text-center py-10 text-gray-500">No hay datos que coincidan con los filtros.</td></tr>`;
+            rowCountDisplay.textContent = 'Mostrando 0 filas.';
+            return;
+        }
+
+        const headers = Object.keys(dataToDisplay[0]);
+        const headerRow = document.createElement('tr');
+        headers.forEach(headerText => {
+            const th = document.createElement('th');
+            th.textContent = headerText;
+            th.className = "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider";
+            headerRow.appendChild(th);
+        });
+        dataTableHead.appendChild(headerRow);
+
+        dataToDisplay.forEach(item => {
+            const row = document.createElement('tr');
+            headers.forEach(header => {
+                const cell = document.createElement('td');
+                cell.textContent = item[header] === undefined || item[header] === null ? '' : item[header];
+                cell.className = "px-6 py-4 whitespace-nowrap text-sm text-gray-700";
+                if (MONTH_COLUMNS.includes(header) && item[header] === 0) {
+                     cell.classList.add('text-gray-400');
+                } else if (MONTH_COLUMNS.includes(header) && item[header] > 0) {
+                    cell.classList.add('font-semibold');
+                }
+                row.appendChild(cell);
+            });
+            dataTableBody.appendChild(row);
+        });
+        rowCountDisplay.textContent = `Mostrando ${dataToDisplay.length} filas.`;
+    }
+
+    function applyFiltersAndDisplay() {
+        const clasificacion = clasificacionFilter.value;
+        const proyecto = proyectoFilter.value;
+        const selectedRecursos = getSelectedResources();
+        const area = areaFilter.value;
+
+        const filteredData = originalData.filter(item => {
+            const recursoMatch = selectedRecursos.length > 0 ? selectedRecursos.includes(item.Recurso) : true;
+            return (clasificacion ? item.Clasificación === clasificacion : true) &&
+                   (proyecto ? item.Proyecto === proyecto : true) &&
+                   recursoMatch &&
+                   (area ? item.Área === area : true);
+        });
+        displayDataTable(filteredData);
+    }
+
+    function displayVacancyRateForSelectedResource() {
+        const selectedRecursos = getSelectedResources();
+        vacancyRateTableBody.innerHTML = ''; 
+
+        if (selectedRecursos.length !== 1) {
+            selectedResourceVacancyInfo.textContent = 'Selecciona un único recurso para ver su detalle de desocupación.';
+            vacancyRateTableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">Selecciona un único recurso.</td></tr>';
+            return;
+        }
+        
+        const selectedRecursoName = selectedRecursos[0];
+        selectedResourceVacancyInfo.innerHTML = `Detalle para: <span class="font-semibold text-indigo-600">${selectedRecursoName}</span> (Capacidad Mensual: ${MAX_HOURS_PER_MONTH} hrs)`;
+
+        const resourceEntries = originalData.filter(item => item.Recurso === selectedRecursoName);
+        
+        if (resourceEntries.length === 0) {
+             vacancyRateTableBody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-500">No se encontraron datos para ${selectedRecursoName}.</td></tr>`;
+            return;
+        }
+
+        const monthlyHours = {};
+        MONTH_COLUMNS.forEach(month => monthlyHours[month] = 0);
+
+        resourceEntries.forEach(entry => {
+            MONTH_COLUMNS.forEach(month => {
+                monthlyHours[month] += (entry[month] || 0);
+            });
+        });
+
+        MONTH_COLUMNS.forEach(month => {
+            const assignedHours = monthlyHours[month];
+            const availableHours = MAX_HOURS_PER_MONTH - assignedHours;
+            const vacancyRate = MAX_HOURS_PER_MONTH > 0 ? (Math.max(0, availableHours) / MAX_HOURS_PER_MONTH) * 100 : 0;
+            
+            const row = vacancyRateTableBody.insertRow();
+            row.insertCell().textContent = month;
+            row.insertCell().textContent = assignedHours.toFixed(0);
+            
+            const vacancyCell = row.insertCell();
+            vacancyCell.textContent = vacancyRate.toFixed(1) + '%';
+            
+            if (vacancyRate > 75) vacancyCell.classList.add('text-green-600', 'font-bold');
+            else if (vacancyRate > 25) vacancyCell.classList.add('text-yellow-600', 'font-semibold');
+            else vacancyCell.classList.add('text-red-600', 'font-bold');
+        });
+    }
+
+    function updateCollectiveAvailableHoursChart() {
+        const selectedRecursos = getSelectedResources();
+
+        if (selectedRecursos.length === 0) {
+            selectedResourcesCollectiveChartInfo.textContent = 'Selecciona uno o más recursos para ver el gráfico de horas disponibles.';
+            if (collectiveAvailableHoursChartInstance) {
+                collectiveAvailableHoursChartInstance.destroy();
+                collectiveAvailableHoursChartInstance = null;
+            }
+            return;
+        }
+
+        selectedResourcesCollectiveChartInfo.innerHTML = `Horas colectivas disponibles para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span>`;
+
+        const monthlyTotalAssignedHours = {};
+        MONTH_COLUMNS.forEach(month => monthlyTotalAssignedHours[month] = 0);
+
+        originalData.forEach(entry => {
+            if (selectedRecursos.includes(entry.Recurso)) {
+                MONTH_COLUMNS.forEach(month => {
+                    monthlyTotalAssignedHours[month] += (entry[month] || 0);
+                });
+            }
+        });
+
+        const totalMonthlyCapacity = selectedRecursos.length * MAX_HOURS_PER_MONTH;
+        const availableHoursData = MONTH_COLUMNS.map(month => {
+            const assigned = monthlyTotalAssignedHours[month];
+            return Math.max(0, totalMonthlyCapacity - assigned); 
+        });
+
+        const chartData = {
+            labels: MONTH_COLUMNS,
+            datasets: [{
+                label: 'Horas Colectivas Disponibles Estimadas',
+                data: availableHoursData,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        };
+
+        if (collectiveAvailableHoursChartInstance) {
+            collectiveAvailableHoursChartInstance.data = chartData;
+            collectiveAvailableHoursChartInstance.update();
+        } else {
+            const ctx = collectiveAvailableHoursChartCanvas.getContext('2d');
+            collectiveAvailableHoursChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Horas Disponibles Colectivas' }
+                        },
+                        x: { title: { display: true, text: 'Mes' } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Disponibles (colectivo): ${context.parsed.y} hrs`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    function updateProjectViabilityChart() {
+        const selectedRecursos = getSelectedResources();
+        const greenColor = 'rgba(75, 192, 192, 0.6)';
+        const redColor = 'rgba(255, 99, 132, 0.6)';
+        const greenBorder = 'rgba(75, 192, 192, 1)';
+        const redBorder = 'rgba(255, 99, 132, 1)';
+
+        if (selectedRecursos.length === 0) {
+            selectedResourcesViabilityChartInfo.textContent = 'Selecciona recursos para ver su viabilidad de proyecto individual.';
+            if (projectViabilityChartInstance) {
+                projectViabilityChartInstance.destroy();
+                projectViabilityChartInstance = null;
+            }
+            return;
+        }
+
+        selectedResourcesViabilityChartInfo.innerHTML = `Viabilidad de proyecto para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span> (Verde si >= ${PROJECT_VIABILITY_THRESHOLD}h disponibles)`;
+
+        const datasets = selectedRecursos.map(recursoName => {
+            const monthlyAvailableHours = MONTH_COLUMNS.map(month => {
+                let assignedHoursThisMonthForResource = 0;
+                originalData.forEach(entry => {
+                    if (entry.Recurso === recursoName && entry[month]) {
+                        assignedHoursThisMonthForResource += entry[month];
+                    }
+                });
+                return Math.max(0, MAX_HOURS_PER_MONTH - assignedHoursThisMonthForResource);
+            });
+
+            const backgroundColors = monthlyAvailableHours.map(hours => hours >= PROJECT_VIABILITY_THRESHOLD ? greenColor : redColor);
+            const borderColors = monthlyAvailableHours.map(hours => hours >= PROJECT_VIABILITY_THRESHOLD ? greenBorder : redBorder);
+
+            return {
+                label: recursoName,
+                data: monthlyAvailableHours,
+                backgroundColor: backgroundColors,
+                borderColor: borderColors,
+                borderWidth: 1
+            };
+        });
+
+        const chartData = {
+            labels: MONTH_COLUMNS,
+            datasets: datasets
+        };
+
+        if (projectViabilityChartInstance) {
+            projectViabilityChartInstance.data = chartData;
+            projectViabilityChartInstance.options.scales.y.title.text = `Horas Disponibles (Umbral Proyecto: ${PROJECT_VIABILITY_THRESHOLD}h)`;
+            projectViabilityChartInstance.update();
+        } else {
+            const ctx = projectViabilityChartCanvas.getContext('2d');
+            projectViabilityChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: `Horas Disponibles (Umbral Proyecto: ${PROJECT_VIABILITY_THRESHOLD}h)` },
+                            // You could add a threshold line here if desired using annotations plugin,
+                            // but coloring bars is more direct for this grouped chart.
+                        },
+                        x: { title: { display: true, text: 'Mes' } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += `${context.parsed.y.toFixed(0)}h disponibles`;
+                                    }
+                                    const viable = context.dataset.data[context.dataIndex] >= PROJECT_VIABILITY_THRESHOLD;
+                                    return `${label} (${viable ? 'Viable' : 'No Viable'})`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+    
+    function resetAllFilters() {
+        clasificacionFilter.value = "";
+        proyectoFilter.value = "";
+        for (let i = 0; i < recursoFilter.options.length; i++) {
+            recursoFilter.options[i].selected = false;
+        }
+        recursoFilter.dispatchEvent(new Event('change')); 
+        areaFilter.value = "";
+        
+        applyFiltersAndDisplay();
+        displayVacancyRateForSelectedResource(); 
+        updateCollectiveAvailableHoursChart();
+        updateProjectViabilityChart();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        originalData = parseCSV(csvData);
+        const columnCount = originalData.length > 0 ? Object.keys(originalData[0]).length : 16;
+        if (originalData.length > 0) {
+            setupFilters(originalData);
+            applyFiltersAndDisplay();
+            displayVacancyRateForSelectedResource();
+            updateCollectiveAvailableHoursChart();
+            updateProjectViabilityChart();
+        } else {
+            dataTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="text-center py-10 text-gray-500">Error al cargar o procesar los datos del CSV.</td></tr>`;
+            rowCountDisplay.textContent = 'Mostrando 0 filas.';
+            vacancyRateTableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">Datos no disponibles.</td></tr>';
+            selectedResourcesCollectiveChartInfo.textContent = 'Datos no disponibles para generar el gráfico.';
+            selectedResourcesViabilityChartInfo.textContent = 'Datos no disponibles para generar el gráfico.';
+        }
+    });
+
+</script>
+</body>
+</html>
