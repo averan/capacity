@@ -6,16 +6,30 @@
     <title>Análisis de Capacidad y Viabilidad de Proyectos</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script> 
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f4f7f6;
         }
-        .filter-container select, .filter-container button {
+        .filter-container select, .filter-container button, .filter-container div { /* Added div for checkbox container */
             min-width: 150px;
         }
-        #recursoFilter {
-            height: 100px; /* Adjust height for multiple select */
+        #recursoFilterContainer { /* Style for the checkbox container */
+            max-height: 150px; /* Increased height */
+            overflow-y: auto;
+            border: 1px solid #d1d5db; /* Similar to select border */
+            border-radius: 0.375rem; /* Rounded corners */
+            padding: 0.5rem;
+            background-color: white;
+        }
+        #recursoFilterContainer label { /* Style for checkbox labels */
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: normal; /* Override label bolding if any */
+        }
+        #recursoFilterContainer input[type="checkbox"] {
+            margin-right: 0.5rem;
         }
         table th, table td {
             padding: 8px 12px;
@@ -28,22 +42,21 @@
         }
         .table-responsive {
             overflow-x: auto;
-            max-height: 400px; /* Adjusted max height */
+            max-height: 400px; 
         }
         .sticky-header th {
             position: sticky;
             top: 0;
-            z-index: 10; /* Ensure header is above content */
-            background-color: #f1f5f9; /* Match header background */
+            z-index: 10; 
+            background-color: #f1f5f9; 
         }
-        .card { /* Generic card style */
+        .card { 
             background-color: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        /* Custom scrollbar for webkit browsers */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -59,9 +72,9 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
-        .chart-container { /* Ensure chart has space */
+        .chart-container { 
             min-height: 350px;
-            position: relative; /* Needed for Chart.js responsiveness */
+            position: relative; 
         }
     </style>
 </head>
@@ -82,10 +95,9 @@
                 <select id="proyectoFilter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
             </div>
             <div>
-                <label for="recursoFilter" class="block text-sm font-medium text-gray-700 mb-1">Recurso(s):</label>
-                <select id="recursoFilter" multiple class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                    </select>
-                <p class="text-xs text-gray-500 mt-1">Ctrl+Click (o Cmd+Click) para seleccionar varios.</p>
+                <label for="recursoFilterContainer" class="block text-sm font-medium text-gray-700 mb-1">Recurso(s):</label>
+                <div id="recursoFilterContainer">
+                    </div>
             </div>
             <div>
                 <label for="areaFilter" class="block text-sm font-medium text-gray-700 mb-1">Área:</label>
@@ -105,9 +117,10 @@
                 <canvas id="collectiveAvailableHoursChart"></canvas>
             </div>
         </div>
-
+        
         <div class="card">
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Viabilidad de Proyecto por Recurso (>= 80h disponibles/mes)</h2>
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Viabilidad General de Proyecto por Recurso (>= 80h disponibles/mes)</h2>
+            <p class="text-sm text-gray-500 mb-2">Mostrando de Mayo a Diciembre.</p>
             <div id="selectedResourcesViabilityChartInfo" class="text-gray-600 mb-3">Selecciona uno o más recursos para ver su viabilidad individual.</div>
             <div class="chart-container">
                 <canvas id="projectViabilityChart"></canvas>
@@ -150,6 +163,9 @@
     </div>
 
 <script>
+// Register the datalabels plugin globally
+Chart.register(ChartDataLabels);
+
 const csvData = `Clasificación,Proyecto,Recurso,Área,Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre
 Proyecto,Motor de Riesgo,Miguel Muñoz,Op Omnicanal,80,80,80,80,60,60,,,,,,
 Proyecto,Pasarela de Pago,Marco Osorio,Op Omnicanal,80,80,80,80,80,40,40,,,,,
@@ -166,38 +182,41 @@ Iniciativa,Banda Riesgo Crédito,Cristián Gonzalez,Op Omnicanal,,,,,12,,20,8,8,
 Proyecto,Biometria,Miguel Muñoz,Op Omnicanal,,,,20,20,20,20,20,20,20,,
 Iniciativa,Pesos Mi Club,Marco Osorio,Op Omnicanal,,,,,12,40,40,20,,,,
 Iniciativa,Aric TRX No Financieras,Marco Osorio,Op Omnicanal,,,,,,,,,,,,
-Proyecto,Seguros en Avances,Stefany Jara,Core,,,,,,,,,,,,
-Proyecto,Mantenedor de Promociones Seguro,Stefany Jara,Core,,,,,,,,,,,,
+Proyecto,Seguros en Avances,Stefany Jara,Core,,,50,50,50,50,50,50,,,,
+Proyecto,Mantenedor de Promociones Seguro,Stefany Jara,Core,,,20,20,20,,,,,,,
 Proyecto,Motor AML,Cristián Sepúlveda,Core,,,,,,,,,,,,
 Proyecto,"Mejora del proceso de confirmación de transacciones, conciliación y liquidación Walmart",Cristián Sepúlveda,Core,,,,,,,,,,,,
 Proyecto,Actualización Weblogic 12.2 (Infraestructura IC),Andrea Durán,Core,8,2,2,8,8,6,,,,,,
 Proyecto,AFT Visa,Cristián Diaz,Core,,40,,7,10,5,,,,,,
-Proyecto,C64,Ricardo Millan,Core,,,,,,,,,,,,
-Proyecto,C45,Ricardo Millan,Core,,,,,,,,,,,,
-Proyecto,"MB2, MC2, MR2",Ricardo Millan,Core,,,,,,,,,,,,
+Proyecto,C64,Ricardo Millán,Core,60,60,60,60,,,,,,,,
+Proyecto,C45,Ricardo Millán,Core,60,60,60,60,,,,,,,,
+Proyecto,"MB2, MC2, MR2",Ricardo Millán,Core,60,60,60,60,,,,,,,,
 Proyecto,P2M,Cristián Sepúlveda,Core,,,,,,,,,,,,
 Proyecto,P2M,Cristián Diaz,Core,4,4,8,8,4,4,4,4,,,,
 Proyecto,OTP in App,Andrea Durán,Core,2,4,4,4,4,4,,,,,,
 Proyecto,OTP in App,Rodrigo Mateluna,Core,20,4,12,15,15,6,,,,,,
-Proyecto,Contact Center IA,Rodrigo Mateluna,Core,,,10,4,10,6,15,10,,,,
+Proyecto,Contact Center IA,Rodrigo Mateluna,Core,,,10,4,15,6,15,10,,,,
 Proyecto,Renovación Infraestructura AS400 (AZ7),Rodrigo Mateluna,Core,10,10,10,24,24,6,,,,,,
-Proyecto,Migración NFS Walmart,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Migración NFS Walmart,Cristián Sepúlveda,Core,10,10,10,10,10,,,,,,,
 Proyecto,"Migración AZ7 versión 4,2 Tokenización PAN",Rodrigo Mateluna,Core,20,5,20,20,20,20,,,,,,
-Iniciativa,Aric TRX No Financieras,Samuel Aguilera,Core,,,,,,,,,,,,
-Iniciativa,Pesos Mi Club,Andrea Durán,Core,,,,,,,,,,,,
-Iniciativa,Cicular 62,Andrea Durán,Core,,,,,,,,,,,,
-Iniciativa,Banda Riesgo Crédito,Andrea Durán,Core,,,,,,,,,,,,
-Proyecto,Servicio Venta y Post Venta Cod 91,Andrea Durán,Core,,,,,,,,,,,,
-Proyecto,Contabilidad Integral (en curso Santi),Pio Marshall,Core,,,,,,,,,,,,
-Proyecto,Contabilidad Integral,Ricardo Millán,Core,,,,,,,,,,,,
-Proyecto,Contabilidad Integral,Andrea Durán,Core,,,,,,,,,,,,
-Proyecto,Contabilidad Integral,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Iniciativa,Aric TRX No Financieras,Samuel Aguilera,Core,,,,50,50,50,50,50,50,,,
+Iniciativa,Aric TRX No Financieras,Rodrigo Mateluna,Core,,10,,8,8,,,,,,,
+Iniciativa,Aric TRX No Financieras,Andrea Durán,Core,,4,,4,4,4,,,,,,
+Iniciativa,Pesos Mi Club,Andrea Durán,Core,,,,,15,15,20,,,,,
+Iniciativa,Cicular 62,Andrea Durán,Core,,,,,15,,30,30,30,30,,
+Iniciativa,Banda Riesgo Crédito,Andrea Durán,Core,,,,,15,,30,30,40,40,,
+Proyecto,Servicio Venta y Post Venta Cod 91,Andrea Durán,Core,20,20,20,20,20,20,,,,,,
+Proyecto,Contabilidad Integral (en curso Santi),Pio Marshall,Core,90,90,90,90,90,90,90,90,90,90,90,90
+Proyecto,Contabilidad Integral,Ricardo Millán,Core,20,20,20,20,20,20,20,20,20,,,
+Proyecto,Contabilidad Integral,Andrea Durán,Core,10,10,10,10,10,10,10,10,10,,,
+Proyecto,Contabilidad Integral,Cristián Sepúlveda,Core,30,30,30,30,30,30,30,30,30,30,30,30
 Proyecto,Transformación de Operaciones,Daniel Yáñez,Core,,,,,,,,,,,,
-Proyecto,Transformación de Operaciones,Catherine Arriagada,Core,,,,,,,,,,,,
-Proyecto,Transformación de Operaciones,Bárbara Rivas,Core,,,,,,,,,,,,
-Proyecto,Transformación de Operaciones,Alejandro Guardia,Core,,,,,,,,,,,,
-Proyecto,Transformación de Operaciones,Cristián Sepúlveda,Core,,,,,,,,,,,,
-Proyecto,Encriptación BBDD IC,Ricardo Millan,Core,,,,,,,,,,,,
+Proyecto,Transformación de Operaciones,Catherine Arriagada,Core,70,70,70,70,70,70,70,70,70,70,70,70
+Proyecto,Transformación de Operaciones,Bárbara Rivas,Core,30,30,30,30,30,30,30,30,30,30,30,30
+Proyecto,Traspaso Provisiones,Ricardo Millán,Core,,,,30,30,30,30,30,30,30,30,30
+Proyecto,Transformación de Operaciones,Alejandro Guardia,Core,30,30,30,30,30,30,30,30,30,30,30,30
+Proyecto,Transformación de Operaciones,Cristián Sepúlveda,Core,40,40,40,40,40,40,40,40,40,40,40,40
+Proyecto,Encriptación BBDD IC,Ricardo Millán,Core,25,25,25,25,10,10,10,,,,,
 Proyecto,PPFF en Soc,Carolina Loncon,Op Intermediación y Procesos Centrales,,,,4,6,6,6,6,6,,,
 Proyecto,PPFF en Soc,Felipe Marchant,Op Intermediación y Procesos Centrales,,,,4,6,6,6,6,6,,,
 Proyecto,Motor de Tasas,Carolina Loncon,Op Intermediación y Procesos Centrales,,,,1,4,4,,,,,,
@@ -288,9 +307,9 @@ Mantención,Mantenciones,Roberto Riquelme,Digital,,,,,160,160,160,160,,,,
 Mantención,Mejoras Dasboard Botón de Pago,Soledad Inostroza,Digital,,,,,20,20,,,,,,
 Proyecto,Google CCAIP - Solucion Call de Clientes,Cristián Sepúlveda,Core,,,,,,,,,,,,
 Proyecto,Normativo de tasas de intercambio 2025,Cristián Sepúlveda,Core,,,,,,,,,,,,
-Proyecto,Conciliacion Khipu en C&C,Cristián Sepúlveda,Core,,,,,,,,,,,,
-Proyecto,PCI 2025 : Purga Disco H,Cristián Sepúlveda,Core,,,,,,,,,,,,
-Proyecto,PCI 2025 : Cifrado Disco H,Cristián Sepúlveda,Core,,,,,,,,,,,,
+Proyecto,Conciliación Khipu en C&C,Cristián Sepúlveda,Core,10,10,10,10,10,10,,,,,,
+Proyecto,PCI 2025 : Purga Disco H,Cristián Sepúlveda,Core,20,20,20,10,10,10,10,10,10,,,
+Proyecto,PCI 2025 : Cifrado Disco H,Cristián Sepúlveda,Core,30,30,30,30,10,10,10,10,10,,,
 Proyecto,Seguros en Avances,Sebastian Campos,Core,,,,,,,,,,,,
 Proyecto,Mantenedor de Promociones Seguro,Ricardo Escobar,Core,,,,,,,,,,,,
 Proyecto,Migración de arquitectura a nuevo tenant bajo la suscripción de BCI.,Oscar Umanzor /M Hernandez,Arquitectura e Infraestructura,30,30,30,30,30,30,30,30,30,,,
@@ -357,16 +376,18 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
 
     const MAX_HOURS_PER_MONTH = 160;
     const PROJECT_VIABILITY_THRESHOLD = 80; // Horas mínimas para viabilidad
-    const MONTH_COLUMNS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const ALL_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const VIABILITY_CHART_MONTHS = ['Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+
     let originalData = [];
     let collectiveAvailableHoursChartInstance = null;
     let projectViabilityChartInstance = null;
-
-
+    
     // DOM Elements
     const clasificacionFilter = document.getElementById('clasificacionFilter');
     const proyectoFilter = document.getElementById('proyectoFilter');
-    const recursoFilter = document.getElementById('recursoFilter');
+    const recursoFilterContainer = document.getElementById('recursoFilterContainer'); // Changed to container
     const areaFilter = document.getElementById('areaFilter');
     const resetFiltersButton = document.getElementById('resetFilters');
     
@@ -382,7 +403,6 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
 
     const projectViabilityChartCanvas = document.getElementById('projectViabilityChart');
     const selectedResourcesViabilityChartInfo = document.getElementById('selectedResourcesViabilityChartInfo');
-
 
     /**
      * Parses a CSV string into an array of objects.
@@ -423,7 +443,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                 const entry = {};
                 headers.forEach((header, index) => {
                     let value = values[index] ? values[index] : '';
-                    if (MONTH_COLUMNS.includes(header)) {
+                    if (ALL_MONTHS.includes(header)) { // Use ALL_MONTHS for parsing
                         entry[header] = value === '' ? 0 : parseInt(value, 10);
                     } else {
                         if (value.startsWith('"') && value.endsWith('"')) {
@@ -440,12 +460,8 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         return data;
     }
 
-    function populateSelect(selectElement, values, defaultValue = "Todos", isMultiple = false) {
-        if (!isMultiple) {
-            selectElement.innerHTML = `<option value="">${defaultValue}</option>`;
-        } else {
-            selectElement.innerHTML = ''; 
-        }
+    function populateSelect(selectElement, values, defaultValue = "Todos") {
+        selectElement.innerHTML = `<option value="">${defaultValue}</option>`;
         const uniqueValues = [...new Set(values.filter(v => v))].sort(); 
         uniqueValues.forEach(value => {
             const option = document.createElement('option');
@@ -455,17 +471,53 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         });
     }
 
+    function populateResourceCheckboxes(data) {
+        recursoFilterContainer.innerHTML = ''; // Clear previous checkboxes
+        const uniqueResources = [...new Set(data.map(item => item.Recurso).filter(r => r))].sort();
+        
+        uniqueResources.forEach(recurso => {
+            const checkboxId = `recurso-${recurso.replace(/\s+/g, '-')}`; // Create a unique ID
+            
+            const label = document.createElement('label');
+            label.htmlFor = checkboxId;
+            label.className = 'flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-1 rounded';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = checkboxId;
+            checkbox.value = recurso;
+            checkbox.className = 'form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500';
+            checkbox.addEventListener('change', () => { // Add event listener directly
+                applyFiltersAndDisplay();
+                updateCollectiveAvailableHoursChart(); 
+                updateProjectViabilityChart();
+                displayVacancyRateForSelectedResource();
+            });
+            
+            const textNode = document.createTextNode(recurso);
+            
+            label.appendChild(checkbox);
+            label.appendChild(textNode);
+            recursoFilterContainer.appendChild(label);
+        });
+    }
+
+
     function getSelectedResources() {
-        return [...recursoFilter.selectedOptions].map(option => option.value);
+        const selected = [];
+        recursoFilterContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+            selected.push(checkbox.value);
+        });
+        return selected;
     }
 
     function setupFilters(data) {
         populateSelect(clasificacionFilter, data.map(item => item.Clasificación), "Todas las Clasificaciones");
         populateSelect(proyectoFilter, data.map(item => item.Proyecto), "Todos los Proyectos");
-        populateSelect(recursoFilter, data.map(item => item.Recurso), "Seleccionar Recurso(s)", true);
+        populateResourceCheckboxes(data); // Populate checkboxes for resources
         populateSelect(areaFilter, data.map(item => item.Área), "Todas las Áreas");
 
-        [clasificacionFilter, proyectoFilter, areaFilter, recursoFilter].forEach(filter => {
+        [clasificacionFilter, proyectoFilter, areaFilter].forEach(filter => { // Removed recursoFilterContainer from this direct listener setup
             filter.addEventListener('change', () => {
                 applyFiltersAndDisplay();
                 updateCollectiveAvailableHoursChart(); 
@@ -504,9 +556,9 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                 const cell = document.createElement('td');
                 cell.textContent = item[header] === undefined || item[header] === null ? '' : item[header];
                 cell.className = "px-6 py-4 whitespace-nowrap text-sm text-gray-700";
-                if (MONTH_COLUMNS.includes(header) && item[header] === 0) {
+                if (ALL_MONTHS.includes(header) && item[header] === 0) { // Use ALL_MONTHS
                      cell.classList.add('text-gray-400');
-                } else if (MONTH_COLUMNS.includes(header) && item[header] > 0) {
+                } else if (ALL_MONTHS.includes(header) && item[header] > 0) { // Use ALL_MONTHS
                     cell.classList.add('font-semibold');
                 }
                 row.appendChild(cell);
@@ -553,15 +605,15 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         }
 
         const monthlyHours = {};
-        MONTH_COLUMNS.forEach(month => monthlyHours[month] = 0);
+        ALL_MONTHS.forEach(month => monthlyHours[month] = 0); // Use ALL_MONTHS
 
         resourceEntries.forEach(entry => {
-            MONTH_COLUMNS.forEach(month => {
+            ALL_MONTHS.forEach(month => { // Use ALL_MONTHS
                 monthlyHours[month] += (entry[month] || 0);
             });
         });
 
-        MONTH_COLUMNS.forEach(month => {
+        ALL_MONTHS.forEach(month => { // Use ALL_MONTHS
             const assignedHours = monthlyHours[month];
             const availableHours = MAX_HOURS_PER_MONTH - assignedHours;
             const vacancyRate = MAX_HOURS_PER_MONTH > 0 ? (Math.max(0, availableHours) / MAX_HOURS_PER_MONTH) * 100 : 0;
@@ -594,24 +646,24 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         selectedResourcesCollectiveChartInfo.innerHTML = `Horas colectivas disponibles para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span>`;
 
         const monthlyTotalAssignedHours = {};
-        MONTH_COLUMNS.forEach(month => monthlyTotalAssignedHours[month] = 0);
+        ALL_MONTHS.forEach(month => monthlyTotalAssignedHours[month] = 0); // Use ALL_MONTHS
 
         originalData.forEach(entry => {
             if (selectedRecursos.includes(entry.Recurso)) {
-                MONTH_COLUMNS.forEach(month => {
+                ALL_MONTHS.forEach(month => { // Use ALL_MONTHS
                     monthlyTotalAssignedHours[month] += (entry[month] || 0);
                 });
             }
         });
 
         const totalMonthlyCapacity = selectedRecursos.length * MAX_HOURS_PER_MONTH;
-        const availableHoursData = MONTH_COLUMNS.map(month => {
+        const availableHoursData = ALL_MONTHS.map(month => { // Use ALL_MONTHS
             const assigned = monthlyTotalAssignedHours[month];
             return Math.max(0, totalMonthlyCapacity - assigned); 
         });
 
         const chartData = {
-            labels: MONTH_COLUMNS,
+            labels: ALL_MONTHS, // Use ALL_MONTHS
             datasets: [{
                 label: 'Horas Colectivas Disponibles Estimadas',
                 data: availableHoursData,
@@ -639,7 +691,10 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                         },
                         x: { title: { display: true, text: 'Mes' } }
                     },
-                    plugins: {
+                    plugins: { 
+                        datalabels: { 
+                            display: false
+                        },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
@@ -653,7 +708,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         }
     }
 
-    function updateProjectViabilityChart() {
+    function updateProjectViabilityChart() { 
         const selectedRecursos = getSelectedResources();
         const greenColor = 'rgba(75, 192, 192, 0.6)';
         const redColor = 'rgba(255, 99, 132, 0.6)';
@@ -669,10 +724,10 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
             return;
         }
 
-        selectedResourcesViabilityChartInfo.innerHTML = `Viabilidad de proyecto para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span> (Verde si >= ${PROJECT_VIABILITY_THRESHOLD}h disponibles)`;
+        selectedResourcesViabilityChartInfo.innerHTML = `Viabilidad general para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span> (Verde si >= ${PROJECT_VIABILITY_THRESHOLD}h disponibles)`;
 
         const datasets = selectedRecursos.map(recursoName => {
-            const monthlyAvailableHours = MONTH_COLUMNS.map(month => {
+            const monthlyAvailableHours = VIABILITY_CHART_MONTHS.map(month => { // Use VIABILITY_CHART_MONTHS
                 let assignedHoursThisMonthForResource = 0;
                 originalData.forEach(entry => {
                     if (entry.Recurso === recursoName && entry[month]) {
@@ -686,7 +741,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
             const borderColors = monthlyAvailableHours.map(hours => hours >= PROJECT_VIABILITY_THRESHOLD ? greenBorder : redBorder);
 
             return {
-                label: recursoName,
+                label: recursoName, 
                 data: monthlyAvailableHours,
                 backgroundColor: backgroundColors,
                 borderColor: borderColors,
@@ -695,7 +750,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         });
 
         const chartData = {
-            labels: MONTH_COLUMNS,
+            labels: VIABILITY_CHART_MONTHS, // Use VIABILITY_CHART_MONTHS
             datasets: datasets
         };
 
@@ -715,26 +770,36 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                         y: {
                             beginAtZero: true,
                             title: { display: true, text: `Horas Disponibles (Umbral Proyecto: ${PROJECT_VIABILITY_THRESHOLD}h)` },
-                            // You could add a threshold line here if desired using annotations plugin,
-                            // but coloring bars is more direct for this grouped chart.
                         },
-                        x: { title: { display: true, text: 'Mes' } }
+                        x: { title: { display: true, text: 'Mes (Mayo-Diciembre)' } } // Updated axis label
                     },
                     plugins: {
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed.y !== null) {
-                                        label += `${context.parsed.y.toFixed(0)}h disponibles`;
-                                    }
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) { label += `${context.parsed.y.toFixed(0)}h disponibles`; }
                                     const viable = context.dataset.data[context.dataIndex] >= PROJECT_VIABILITY_THRESHOLD;
                                     return `${label} (${viable ? 'Viable' : 'No Viable'})`;
                                 }
                             }
+                        },
+                        datalabels: {
+                            display: true,
+                            align: 'top',
+                            anchor: 'end',
+                            rotation: -60,
+                            formatter: function(value, context) {
+                                return value > 0 ? context.dataset.label : null;
+                            },
+                            color: '#333', 
+                            font: {
+                                size: 9,
+                                weight: 'bold'
+                            },
+                            offset: -5, 
+                            padding: 0
                         }
                     }
                 }
@@ -745,16 +810,22 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
     function resetAllFilters() {
         clasificacionFilter.value = "";
         proyectoFilter.value = "";
-        for (let i = 0; i < recursoFilter.options.length; i++) {
-            recursoFilter.options[i].selected = false;
-        }
-        recursoFilter.dispatchEvent(new Event('change')); 
-        areaFilter.value = "";
+        recursoFilterContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => { // Uncheck all
+            checkbox.checked = false;
+        });
         
+        // Trigger change on one of the main filters to refresh charts, 
+        // or call update functions directly if checkbox changes don't bubble up to a single filter element.
+        // For simplicity, we'll rely on the checkbox event listeners to trigger updates.
+        // However, to ensure a full refresh, explicitly call update functions after resetting.
+        
+        areaFilter.value = ""; 
+        
+        // Explicitly call update functions after resetting all filters
         applyFiltersAndDisplay();
-        displayVacancyRateForSelectedResource(); 
-        updateCollectiveAvailableHoursChart();
+        updateCollectiveAvailableHoursChart(); 
         updateProjectViabilityChart();
+        displayVacancyRateForSelectedResource();
     }
 
     // Initialize
