@@ -12,21 +12,21 @@
             font-family: 'Inter', sans-serif;
             background-color: #f4f7f6;
         }
-        .filter-container select, .filter-container button, .filter-container div { /* Added div for checkbox container */
+        .filter-container select, .filter-container button, .filter-container div {
             min-width: 150px;
         }
-        #recursoFilterContainer { /* Style for the checkbox container */
-            max-height: 150px; /* Increased height */
+        #recursoFilterContainer { 
+            max-height: 150px; 
             overflow-y: auto;
-            border: 1px solid #d1d5db; /* Similar to select border */
-            border-radius: 0.375rem; /* Rounded corners */
+            border: 1px solid #d1d5db; 
+            border-radius: 0.375rem; 
             padding: 0.5rem;
             background-color: white;
         }
-        #recursoFilterContainer label { /* Style for checkbox labels */
+        #recursoFilterContainer label { 
             display: block;
             margin-bottom: 0.25rem;
-            font-weight: normal; /* Override label bolding if any */
+            font-weight: normal; 
         }
         #recursoFilterContainer input[type="checkbox"] {
             margin-right: 0.5rem;
@@ -76,6 +76,28 @@
             min-height: 350px;
             position: relative; 
         }
+        #csvUploadContainer {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #e0f2fe; /* Light blue background */
+            border: 1px dashed #0284c7; /* Blue dashed border */
+            border-radius: 8px;
+        }
+        #csvUploadContainer label {
+            font-weight: 600;
+            color: #0369a1; /* Darker blue text */
+        }
+        #csvFile {
+            margin-top: 8px;
+            padding: 8px;
+            border: 1px solid #93c5fd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        #uploadStatus {
+            margin-top: 10px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -84,6 +106,19 @@
             <h1 class="text-3xl font-bold text-gray-800">Análisis de Capacidad y Viabilidad de Proyectos</h1>
             <p class="text-gray-600 mt-2">Filtra datos, visualiza disponibilidad y viabilidad de recursos para proyectos (límite mensual: 160h, viabilidad proyecto: >=80h disponibles).</p>
         </header>
+
+        <div id="csvUploadContainer" class="card">
+            <label for="csvFile" class="block text-lg font-medium text-gray-700 mb-2">Cargar Archivo CSV de Capacidad:</label>
+            <input type="file" id="csvFile" accept=".csv" class="w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-md file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100
+            "/>
+            <div id="uploadStatus" class="mt-2 text-sm"></div>
+        </div>
+
 
         <div class="card grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 p-6">
             <div>
@@ -166,7 +201,8 @@
 // Register the datalabels plugin globally
 Chart.register(ChartDataLabels);
 
-const csvData = `Clasificación,Proyecto,Recurso,Área,Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre
+// Initial CSV data can be kept as a fallback or for initial display
+let initialCsvData = `Clasificación,Proyecto,Recurso,Área,Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre
 Proyecto,Motor de Riesgo,Miguel Muñoz,Op Omnicanal,80,80,80,80,60,60,,,,,,
 Proyecto,Pasarela de Pago,Marco Osorio,Op Omnicanal,80,80,80,80,80,40,40,,,,,
 Proyecto,PPFF en Soc,Miguel Muñoz,Op Omnicanal,,,4,8,12,20,20,80,80,,,
@@ -385,6 +421,9 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
     let projectViabilityChartInstance = null;
     
     // DOM Elements
+    const csvFileInput = document.getElementById('csvFile');
+    const uploadStatusDiv = document.getElementById('uploadStatus');
+
     const clasificacionFilter = document.getElementById('clasificacionFilter');
     const proyectoFilter = document.getElementById('proyectoFilter');
     const recursoFilterContainer = document.getElementById('recursoFilterContainer'); // Changed to container
@@ -517,7 +556,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         populateResourceCheckboxes(data); // Populate checkboxes for resources
         populateSelect(areaFilter, data.map(item => item.Área), "Todas las Áreas");
 
-        [clasificacionFilter, proyectoFilter, areaFilter].forEach(filter => { // Removed recursoFilterContainer from this direct listener setup
+        [clasificacionFilter, proyectoFilter, areaFilter].forEach(filter => { 
             filter.addEventListener('change', () => {
                 applyFiltersAndDisplay();
                 updateCollectiveAvailableHoursChart(); 
@@ -813,38 +852,71 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         recursoFilterContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => { // Uncheck all
             checkbox.checked = false;
         });
-        
-        // Trigger change on one of the main filters to refresh charts, 
-        // or call update functions directly if checkbox changes don't bubble up to a single filter element.
-        // For simplicity, we'll rely on the checkbox event listeners to trigger updates.
-        // However, to ensure a full refresh, explicitly call update functions after resetting.
-        
         areaFilter.value = ""; 
         
-        // Explicitly call update functions after resetting all filters
         applyFiltersAndDisplay();
         updateCollectiveAvailableHoursChart(); 
         updateProjectViabilityChart();
         displayVacancyRateForSelectedResource();
     }
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
-        originalData = parseCSV(csvData);
-        const columnCount = originalData.length > 0 ? Object.keys(originalData[0]).length : 16;
+    function initializeAppWithData(csvString) {
+        originalData = parseCSV(csvString);
+        const columnCount = originalData.length > 0 ? Object.keys(originalData[0]).length : 16; // Default to 16 if no data
+
         if (originalData.length > 0) {
-            setupFilters(originalData);
-            applyFiltersAndDisplay();
-            displayVacancyRateForSelectedResource();
-            updateCollectiveAvailableHoursChart();
-            updateProjectViabilityChart();
+            uploadStatusDiv.textContent = 'Datos cargados correctamente.';
+            uploadStatusDiv.className = 'mt-2 text-sm text-green-600';
+            setupFilters(originalData); // Re-setup filters with new data
+            resetAllFilters(); // Reset selections and trigger initial display with new data
         } else {
-            dataTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="text-center py-10 text-gray-500">Error al cargar o procesar los datos del CSV.</td></tr>`;
+            dataTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="text-center py-10 text-gray-500">No se pudieron procesar los datos del CSV o el archivo está vacío.</td></tr>`;
             rowCountDisplay.textContent = 'Mostrando 0 filas.';
             vacancyRateTableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">Datos no disponibles.</td></tr>';
             selectedResourcesCollectiveChartInfo.textContent = 'Datos no disponibles para generar el gráfico.';
             selectedResourcesViabilityChartInfo.textContent = 'Datos no disponibles para generar el gráfico.';
+            uploadStatusDiv.textContent = 'Error: No se pudieron procesar los datos del CSV o el archivo está vacío.';
+            uploadStatusDiv.className = 'mt-2 text-sm text-red-600';
+            // Clear filters if data load fails or is empty
+            clasificacionFilter.innerHTML = '<option value="">Todas las Clasificaciones</option>';
+            proyectoFilter.innerHTML = '<option value="">Todos los Proyectos</option>';
+            recursoFilterContainer.innerHTML = '<p class="text-xs text-gray-500">Cargue un CSV para ver recursos.</p>';
+            areaFilter.innerHTML = '<option value="">Todas las Áreas</option>';
         }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        // Setup file upload listener
+        csvFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        initializeAppWithData(e.target.result);
+                    } catch (error) {
+                        console.error("Error processing CSV file:", error);
+                        uploadStatusDiv.textContent = `Error al procesar el archivo: ${error.message}`;
+                        uploadStatusDiv.className = 'mt-2 text-sm text-red-600';
+                    }
+                };
+                reader.onerror = () => {
+                    console.error("Error reading file:", reader.error);
+                    uploadStatusDiv.textContent = 'Error al leer el archivo.';
+                    uploadStatusDiv.className = 'mt-2 text-sm text-red-600';
+                };
+                reader.readAsText(file);
+            } else {
+                uploadStatusDiv.textContent = 'Ningún archivo seleccionado.';
+                 uploadStatusDiv.className = 'mt-2 text-sm text-gray-600';
+            }
+        });
+
+        // Initial load with placeholder/default data or prompt to upload
+        initializeAppWithData(initialCsvData); // Load initial data on page load
+        uploadStatusDiv.textContent = 'Datos de ejemplo cargados. Sube tu propio CSV para analizar tus datos.';
+        uploadStatusDiv.className = 'mt-2 text-sm text-blue-600';
     });
 
 </script>
