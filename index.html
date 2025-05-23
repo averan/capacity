@@ -79,13 +79,13 @@
         #csvUploadContainer {
             margin-bottom: 20px;
             padding: 20px;
-            background-color: #e0f2fe; /* Light blue background */
-            border: 1px dashed #0284c7; /* Blue dashed border */
+            background-color: #e0f2fe; 
+            border: 1px dashed #0284c7; 
             border-radius: 8px;
         }
         #csvUploadContainer label {
             font-weight: 600;
-            color: #0369a1; /* Darker blue text */
+            color: #0369a1; 
         }
         #csvFile {
             margin-top: 8px;
@@ -98,6 +98,15 @@
             margin-top: 10px;
             font-style: italic;
         }
+        /* Styles for the new heatmap table */
+        .availability-heatmap th, .availability-heatmap td {
+            min-width: 80px; /* Ensure months have some width */
+            text-align: center;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .availability-heatmap td.bg-green-200 { background-color: #bbf7d0; color: #166534; }
+        .availability-heatmap td.bg-yellow-200 { background-color: #fef08a; color: #854d0e; }
+        .availability-heatmap td.bg-red-200 { background-color: #fecaca; color: #991b1b; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -142,6 +151,20 @@
                 <button id="resetFilters" class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-md shadow-sm">
                     Limpiar Filtros
                 </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Heatmap de Disponibilidad por Recurso</h2>
+            <p class="text-sm text-gray-500 mb-2">Horas disponibles por mes. Colores: >80h (Verde), 40-80h (Amarillo), <40h (Rojo).</p>
+            <div id="availabilityHeatmapInfo" class="text-gray-600 mb-3">Selecciona recursos para ver el heatmap.</div>
+            <div class="table-responsive">
+                <table id="availabilityHeatmapTable" class="min-w-full divide-y divide-gray-200 availability-heatmap">
+                    <thead id="availabilityHeatmapThead">
+                        </thead>
+                    <tbody id="availabilityHeatmapTbody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
             </div>
         </div>
 
@@ -411,7 +434,7 @@ Mantención,Mantenimientos Seguridad ,Camila Gonzalez / Victor Miranda ,Arquitec
 Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
 
     const MAX_HOURS_PER_MONTH = 160;
-    const PROJECT_VIABILITY_THRESHOLD = 80; // Horas mínimas para viabilidad
+    const PROJECT_VIABILITY_THRESHOLD = 80; 
     const ALL_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const VIABILITY_CHART_MONTHS = ['Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -426,7 +449,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
 
     const clasificacionFilter = document.getElementById('clasificacionFilter');
     const proyectoFilter = document.getElementById('proyectoFilter');
-    const recursoFilterContainer = document.getElementById('recursoFilterContainer'); // Changed to container
+    const recursoFilterContainer = document.getElementById('recursoFilterContainer'); 
     const areaFilter = document.getElementById('areaFilter');
     const resetFiltersButton = document.getElementById('resetFilters');
     
@@ -442,6 +465,11 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
 
     const projectViabilityChartCanvas = document.getElementById('projectViabilityChart');
     const selectedResourcesViabilityChartInfo = document.getElementById('selectedResourcesViabilityChartInfo');
+
+    const availabilityHeatmapThead = document.getElementById('availabilityHeatmapThead');
+    const availabilityHeatmapTbody = document.getElementById('availabilityHeatmapTbody');
+    const availabilityHeatmapInfo = document.getElementById('availabilityHeatmapInfo');
+
 
     /**
      * Parses a CSV string into an array of objects.
@@ -482,7 +510,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                 const entry = {};
                 headers.forEach((header, index) => {
                     let value = values[index] ? values[index] : '';
-                    if (ALL_MONTHS.includes(header)) { // Use ALL_MONTHS for parsing
+                    if (ALL_MONTHS.includes(header)) { 
                         entry[header] = value === '' ? 0 : parseInt(value, 10);
                     } else {
                         if (value.startsWith('"') && value.endsWith('"')) {
@@ -511,11 +539,11 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
     }
 
     function populateResourceCheckboxes(data) {
-        recursoFilterContainer.innerHTML = ''; // Clear previous checkboxes
+        recursoFilterContainer.innerHTML = ''; 
         const uniqueResources = [...new Set(data.map(item => item.Recurso).filter(r => r))].sort();
         
         uniqueResources.forEach(recurso => {
-            const checkboxId = `recurso-${recurso.replace(/\s+/g, '-')}`; // Create a unique ID
+            const checkboxId = `recurso-${recurso.replace(/\s+/g, '-')}`; 
             
             const label = document.createElement('label');
             label.htmlFor = checkboxId;
@@ -526,11 +554,9 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
             checkbox.id = checkboxId;
             checkbox.value = recurso;
             checkbox.className = 'form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500';
-            checkbox.addEventListener('change', () => { // Add event listener directly
+            checkbox.addEventListener('change', () => { 
                 applyFiltersAndDisplay();
-                updateCollectiveAvailableHoursChart(); 
-                updateProjectViabilityChart();
-                displayVacancyRateForSelectedResource();
+                updateAllChartsAndTables();
             });
             
             const textNode = document.createTextNode(recurso);
@@ -550,18 +576,23 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         return selected;
     }
 
+    function updateAllChartsAndTables() {
+        updateCollectiveAvailableHoursChart(); 
+        updateProjectViabilityChart();
+        updateAvailabilityHeatmap();
+        displayVacancyRateForSelectedResource();
+    }
+
     function setupFilters(data) {
         populateSelect(clasificacionFilter, data.map(item => item.Clasificación), "Todas las Clasificaciones");
         populateSelect(proyectoFilter, data.map(item => item.Proyecto), "Todos los Proyectos");
-        populateResourceCheckboxes(data); // Populate checkboxes for resources
+        populateResourceCheckboxes(data); 
         populateSelect(areaFilter, data.map(item => item.Área), "Todas las Áreas");
 
         [clasificacionFilter, proyectoFilter, areaFilter].forEach(filter => { 
             filter.addEventListener('change', () => {
                 applyFiltersAndDisplay();
-                updateCollectiveAvailableHoursChart(); 
-                updateProjectViabilityChart();
-                displayVacancyRateForSelectedResource();
+                updateAllChartsAndTables();
             });
         });
         resetFiltersButton.addEventListener('click', resetAllFilters);
@@ -595,9 +626,9 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                 const cell = document.createElement('td');
                 cell.textContent = item[header] === undefined || item[header] === null ? '' : item[header];
                 cell.className = "px-6 py-4 whitespace-nowrap text-sm text-gray-700";
-                if (ALL_MONTHS.includes(header) && item[header] === 0) { // Use ALL_MONTHS
+                if (ALL_MONTHS.includes(header) && item[header] === 0) { 
                      cell.classList.add('text-gray-400');
-                } else if (ALL_MONTHS.includes(header) && item[header] > 0) { // Use ALL_MONTHS
+                } else if (ALL_MONTHS.includes(header) && item[header] > 0) { 
                     cell.classList.add('font-semibold');
                 }
                 row.appendChild(cell);
@@ -644,15 +675,15 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         }
 
         const monthlyHours = {};
-        ALL_MONTHS.forEach(month => monthlyHours[month] = 0); // Use ALL_MONTHS
+        ALL_MONTHS.forEach(month => monthlyHours[month] = 0); 
 
         resourceEntries.forEach(entry => {
-            ALL_MONTHS.forEach(month => { // Use ALL_MONTHS
+            ALL_MONTHS.forEach(month => { 
                 monthlyHours[month] += (entry[month] || 0);
             });
         });
 
-        ALL_MONTHS.forEach(month => { // Use ALL_MONTHS
+        ALL_MONTHS.forEach(month => { 
             const assignedHours = monthlyHours[month];
             const availableHours = MAX_HOURS_PER_MONTH - assignedHours;
             const vacancyRate = MAX_HOURS_PER_MONTH > 0 ? (Math.max(0, availableHours) / MAX_HOURS_PER_MONTH) * 100 : 0;
@@ -685,24 +716,24 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         selectedResourcesCollectiveChartInfo.innerHTML = `Horas colectivas disponibles para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span>`;
 
         const monthlyTotalAssignedHours = {};
-        ALL_MONTHS.forEach(month => monthlyTotalAssignedHours[month] = 0); // Use ALL_MONTHS
+        ALL_MONTHS.forEach(month => monthlyTotalAssignedHours[month] = 0); 
 
         originalData.forEach(entry => {
             if (selectedRecursos.includes(entry.Recurso)) {
-                ALL_MONTHS.forEach(month => { // Use ALL_MONTHS
+                ALL_MONTHS.forEach(month => { 
                     monthlyTotalAssignedHours[month] += (entry[month] || 0);
                 });
             }
         });
 
         const totalMonthlyCapacity = selectedRecursos.length * MAX_HOURS_PER_MONTH;
-        const availableHoursData = ALL_MONTHS.map(month => { // Use ALL_MONTHS
+        const availableHoursData = ALL_MONTHS.map(month => { 
             const assigned = monthlyTotalAssignedHours[month];
             return Math.max(0, totalMonthlyCapacity - assigned); 
         });
 
         const chartData = {
-            labels: ALL_MONTHS, // Use ALL_MONTHS
+            labels: ALL_MONTHS, 
             datasets: [{
                 label: 'Horas Colectivas Disponibles Estimadas',
                 data: availableHoursData,
@@ -766,7 +797,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         selectedResourcesViabilityChartInfo.innerHTML = `Viabilidad general para: <span class="font-semibold text-indigo-600">${selectedRecursos.join(', ')}</span> (Verde si >= ${PROJECT_VIABILITY_THRESHOLD}h disponibles)`;
 
         const datasets = selectedRecursos.map(recursoName => {
-            const monthlyAvailableHours = VIABILITY_CHART_MONTHS.map(month => { // Use VIABILITY_CHART_MONTHS
+            const monthlyAvailableHours = VIABILITY_CHART_MONTHS.map(month => { 
                 let assignedHoursThisMonthForResource = 0;
                 originalData.forEach(entry => {
                     if (entry.Recurso === recursoName && entry[month]) {
@@ -789,7 +820,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         });
 
         const chartData = {
-            labels: VIABILITY_CHART_MONTHS, // Use VIABILITY_CHART_MONTHS
+            labels: VIABILITY_CHART_MONTHS, 
             datasets: datasets
         };
 
@@ -810,7 +841,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                             beginAtZero: true,
                             title: { display: true, text: `Horas Disponibles (Umbral Proyecto: ${PROJECT_VIABILITY_THRESHOLD}h)` },
                         },
-                        x: { title: { display: true, text: 'Mes (Mayo-Diciembre)' } } // Updated axis label
+                        x: { title: { display: true, text: 'Mes (Mayo-Diciembre)' } } 
                     },
                     plugins: {
                         tooltip: {
@@ -845,39 +876,91 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
             });
         }
     }
+
+    function updateAvailabilityHeatmap() {
+        const selectedRecursos = getSelectedResources();
+        availabilityHeatmapThead.innerHTML = '';
+        availabilityHeatmapTbody.innerHTML = '';
+
+        if (selectedRecursos.length === 0) {
+            availabilityHeatmapInfo.textContent = 'Selecciona recursos para ver el heatmap de disponibilidad.';
+            availabilityHeatmapTbody.innerHTML = `<tr><td colspan="${ALL_MONTHS.length + 1}" class="text-center py-4 text-gray-500">No hay recursos seleccionados.</td></tr>`;
+            return;
+        }
+
+        availabilityHeatmapInfo.textContent = `Mostrando disponibilidad para: ${selectedRecursos.join(', ')}`;
+
+        // Create header row
+        const headerRow = availabilityHeatmapThead.insertRow();
+        let th = headerRow.insertCell();
+        th.textContent = 'Recurso';
+        th.className = 'sticky left-0 bg-gray-100 z-10'; // Sticky first column header
+
+        ALL_MONTHS.forEach(month => {
+            th = headerRow.insertCell();
+            th.textContent = month;
+        });
+
+        // Create data rows
+        selectedRecursos.forEach(recursoName => {
+            const row = availabilityHeatmapTbody.insertRow();
+            let cell = row.insertCell();
+            cell.textContent = recursoName;
+            cell.className = 'font-semibold sticky left-0 bg-white z-10'; // Sticky first column cells
+
+            ALL_MONTHS.forEach(month => {
+                cell = row.insertCell();
+                let assignedHoursThisMonthForResource = 0;
+                originalData.forEach(entry => {
+                    if (entry.Recurso === recursoName && entry[month]) {
+                        assignedHoursThisMonthForResource += entry[month];
+                    }
+                });
+                const availableHours = Math.max(0, MAX_HOURS_PER_MONTH - assignedHoursThisMonthForResource);
+                cell.textContent = availableHours;
+
+                if (availableHours > 80) {
+                    cell.classList.add('bg-green-200');
+                } else if (availableHours >= 40) {
+                    cell.classList.add('bg-yellow-200');
+                } else {
+                    cell.classList.add('bg-red-200');
+                }
+            });
+        });
+    }
     
     function resetAllFilters() {
         clasificacionFilter.value = "";
         proyectoFilter.value = "";
-        recursoFilterContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => { // Uncheck all
+        recursoFilterContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => { 
             checkbox.checked = false;
         });
         areaFilter.value = ""; 
         
         applyFiltersAndDisplay();
-        updateCollectiveAvailableHoursChart(); 
-        updateProjectViabilityChart();
-        displayVacancyRateForSelectedResource();
+        updateAllChartsAndTables();
     }
 
     function initializeAppWithData(csvString) {
         originalData = parseCSV(csvString);
-        const columnCount = originalData.length > 0 ? Object.keys(originalData[0]).length : 16; // Default to 16 if no data
+        const columnCount = originalData.length > 0 ? Object.keys(originalData[0]).length : 16; 
 
         if (originalData.length > 0) {
             uploadStatusDiv.textContent = 'Datos cargados correctamente.';
             uploadStatusDiv.className = 'mt-2 text-sm text-green-600';
-            setupFilters(originalData); // Re-setup filters with new data
-            resetAllFilters(); // Reset selections and trigger initial display with new data
+            setupFilters(originalData); 
+            resetAllFilters(); 
         } else {
             dataTableBody.innerHTML = `<tr><td colspan="${columnCount}" class="text-center py-10 text-gray-500">No se pudieron procesar los datos del CSV o el archivo está vacío.</td></tr>`;
             rowCountDisplay.textContent = 'Mostrando 0 filas.';
             vacancyRateTableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">Datos no disponibles.</td></tr>';
             selectedResourcesCollectiveChartInfo.textContent = 'Datos no disponibles para generar el gráfico.';
             selectedResourcesViabilityChartInfo.textContent = 'Datos no disponibles para generar el gráfico.';
+            availabilityHeatmapTbody.innerHTML = `<tr><td colspan="${ALL_MONTHS.length + 1}" class="text-center py-4 text-gray-500">Cargue un CSV para ver datos.</td></tr>`;
             uploadStatusDiv.textContent = 'Error: No se pudieron procesar los datos del CSV o el archivo está vacío.';
             uploadStatusDiv.className = 'mt-2 text-sm text-red-600';
-            // Clear filters if data load fails or is empty
+            
             clasificacionFilter.innerHTML = '<option value="">Todas las Clasificaciones</option>';
             proyectoFilter.innerHTML = '<option value="">Todos los Proyectos</option>';
             recursoFilterContainer.innerHTML = '<p class="text-xs text-gray-500">Cargue un CSV para ver recursos.</p>';
@@ -887,7 +970,6 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
-        // Setup file upload listener
         csvFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
@@ -913,8 +995,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
             }
         });
 
-        // Initial load with placeholder/default data or prompt to upload
-        initializeAppWithData(initialCsvData); // Load initial data on page load
+        initializeAppWithData(initialCsvData); 
         uploadStatusDiv.textContent = 'Datos de ejemplo cargados. Sube tu propio CSV para analizar tus datos.';
         uploadStatusDiv.className = 'mt-2 text-sm text-blue-600';
     });
