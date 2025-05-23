@@ -40,9 +40,13 @@
             background-color: #f1f5f9;
             font-weight: 600;
         }
-        .table-responsive {
+        .table-responsive { /* General class for tables that need scroll */
             overflow-x: auto;
             max-height: 400px; 
+        }
+        .heatmap-table-container { /* Specific for heatmap to allow vertical growth */
+            overflow-x: auto; /* Horizontal scroll for months */
+            /* No max-height, so it grows vertically with content */
         }
         .sticky-header th {
             position: sticky;
@@ -158,8 +162,7 @@
             <h2 class="text-xl font-semibold text-gray-700 mb-4">Heatmap de Disponibilidad por Recurso</h2>
             <p class="text-sm text-gray-500 mb-2">Horas disponibles por mes. Colores: >80h (Verde), 40-80h (Amarillo), <40h (Rojo).</p>
             <div id="availabilityHeatmapInfo" class="text-gray-600 mb-3">Selecciona recursos para ver el heatmap.</div>
-            <div class="table-responsive">
-                <table id="availabilityHeatmapTable" class="min-w-full divide-y divide-gray-200 availability-heatmap">
+            <div class="heatmap-table-container"> <table id="availabilityHeatmapTable" class="min-w-full divide-y divide-gray-200 availability-heatmap">
                     <thead id="availabilityHeatmapThead">
                         </thead>
                     <tbody id="availabilityHeatmapTbody" class="bg-white divide-y divide-gray-200">
@@ -469,6 +472,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
     const availabilityHeatmapThead = document.getElementById('availabilityHeatmapThead');
     const availabilityHeatmapTbody = document.getElementById('availabilityHeatmapTbody');
     const availabilityHeatmapInfo = document.getElementById('availabilityHeatmapInfo');
+    const heatmapTableContainer = document.querySelector('.heatmap-table-container'); // Get the container for the heatmap table
 
 
     /**
@@ -885,6 +889,10 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         if (selectedRecursos.length === 0) {
             availabilityHeatmapInfo.textContent = 'Selecciona recursos para ver el heatmap de disponibilidad.';
             availabilityHeatmapTbody.innerHTML = `<tr><td colspan="${ALL_MONTHS.length + 1}" class="text-center py-4 text-gray-500">No hay recursos seleccionados.</td></tr>`;
+            // Reset heatmap container height if no resources are selected
+            if (heatmapTableContainer) {
+                heatmapTableContainer.style.maxHeight = '400px'; // Or your default scrollable height
+            }
             return;
         }
 
@@ -894,7 +902,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
         const headerRow = availabilityHeatmapThead.insertRow();
         let th = headerRow.insertCell();
         th.textContent = 'Recurso';
-        th.className = 'sticky left-0 bg-gray-100 z-10'; // Sticky first column header
+        th.className = 'sticky left-0 bg-gray-100 z-10'; 
 
         ALL_MONTHS.forEach(month => {
             th = headerRow.insertCell();
@@ -906,7 +914,7 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
             const row = availabilityHeatmapTbody.insertRow();
             let cell = row.insertCell();
             cell.textContent = recursoName;
-            cell.className = 'font-semibold sticky left-0 bg-white z-10'; // Sticky first column cells
+            cell.className = 'font-semibold sticky left-0 bg-white z-10'; 
 
             ALL_MONTHS.forEach(month => {
                 cell = row.insertCell();
@@ -928,6 +936,13 @@ Mantención,BAU Células,Felipe Castro,Digital,,,,,,,,,80,80,80,80`;
                 }
             });
         });
+        
+        // Dynamically adjust heatmap container height
+        if (heatmapTableContainer) {
+            // Remove max-height to let it grow, or set a very large max-height
+            // For this request, we want it to grow without internal scroll
+            heatmapTableContainer.style.maxHeight = 'none'; 
+        }
     }
     
     function resetAllFilters() {
